@@ -1,58 +1,56 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get all products
+// Configure Multer for image uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Path to save uploaded images
+    cb(null, 'public/images'); 
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  }
+});
+const upload = multer({ storage });
+
+// POST route to add a product
+router.post('/', upload.single('image'), async (req, res) => {
+  const { name, description, cost } = req.body;
+
+  // Validate input
+  if (!name || !description || !cost || !req.file) {
+    return res.status(400).json({ error: 'All fields are required, including an image.' });
+  }
+
+  try {
+    const product = await prisma.product.create({
+      data: {
+        name,
+        description,
+        cost: parseFloat(cost),
+        // Save uploaded image's filename
+        image_filename: req.file.filename, 
+      },
+    });
+    res.status(201).json({ message: 'Product created', product });
+  } catch (error) {
+    console.error('Error creating product:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 router.get('/all', async (req, res) => {
-  try {
-    const products = await prisma.product.findMany();
-    res.status(200).json(products);
-  } catch (error) {
-    res.status(500).json({ error: 'Error fetching products', details: error.message });
-  }
-});
-
-// Get product by ID
-router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const product = await prisma.product.findUnique({ where: { product_id: parseInt(id) } });
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
+    try {
+      const products = await prisma.product.findMany();
+      res.status(200).json(products);
+    } catch (error) {
+      res.status(500).json({ error: 'Error fetching products', details: error.message });
     }
-    res.status(200).json(product);
-  } catch (error) {
-    res.status(500).json({ error: 'Error fetching product', details: error.message });
-  }
-});
-
-// Purchase a product
-router.post('/purchase', async (req, res) => {
-  const { product_id, customer_id } = req.body;
-
-  if (!product_id || !customer_id) {
-    return res.status(400).json({ error: 'Product ID and Customer ID are required' });
-  }
-
-  try {
-    const product = await prisma.product.findUnique({ where: { product_id } });
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-
-    const customer = await prisma.customer.findUnique({ where: { customer_id } });
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-
-    // Simulate purchase (you can expand this logic to create a purchase record)
-    res.status(200).json({ message: 'Purchase successful', product, customer });
-  } catch (error) {
-    res.status(500).json({ error: 'Error processing purchase', details: error.message });
-  }
-});
-
+  });
+  
 module.exports = router;
