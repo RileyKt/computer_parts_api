@@ -8,22 +8,49 @@ const prisma = new PrismaClient();
 
 // Configure Multer for image uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    // Path to save uploaded images
-    cb(null, 'public/images'); 
+  destination: (req, file, cb) => {
+    cb(null, 'public/images');
   },
-  filename: function (req, file, cb) {
-    const uniqueName = `${Date.now()}-${file.originalname}`;
-    cb(null, uniqueName);
-  }
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
 });
 const upload = multer({ storage });
 
-// POST route to add a product
+// Get All Products Route
+router.get('/all', async (req, res) => {
+  try {
+    const products = await prisma.product.findMany();
+    res.status(200).json(products);
+  } catch (error) {
+    res.status(500).json({ error: 'Error fetching products', details: error.message });
+  }
+});
+
+// Get Product by ID Route
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (!Number.isInteger(Number(id))) {
+    return res.status(400).json({ error: 'Invalid product ID. ID must be an integer.' });
+  }
+
+  try {
+    const product = await prisma.product.findUnique({ where: { id: parseInt(id) } });
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found.' });
+    }
+    res.status(200).json(product);
+  } catch (error) {
+    console.error('Error fetching product by ID:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add a New Product Route
 router.post('/', upload.single('image'), async (req, res) => {
   const { name, description, cost } = req.body;
 
-  // Validate input
   if (!name || !description || !cost || !req.file) {
     return res.status(400).json({ error: 'All fields are required, including an image.' });
   }
@@ -34,8 +61,7 @@ router.post('/', upload.single('image'), async (req, res) => {
         name,
         description,
         cost: parseFloat(cost),
-        // Save uploaded image's filename
-        image_filename: req.file.filename, 
+        image_filename: req.file.filename,
       },
     });
     res.status(201).json({ message: 'Product created', product });
@@ -44,13 +70,5 @@ router.post('/', upload.single('image'), async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-router.get('/all', async (req, res) => {
-    try {
-      const products = await prisma.product.findMany();
-      res.status(200).json(products);
-    } catch (error) {
-      res.status(500).json({ error: 'Error fetching products', details: error.message });
-    }
-  });
-  
+
 module.exports = router;

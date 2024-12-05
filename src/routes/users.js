@@ -9,25 +9,18 @@ const prisma = new PrismaClient();
 router.post('/signup', async (req, res) => {
   const { email, password, first_name, last_name } = req.body;
 
-  // Validate input fields
   if (!email || !password || !first_name || !last_name) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
   try {
-    // Check if the email already exists
-    const existingUser = await prisma.customer.findUnique({
-      where: { email },
-    });
-
+    const existingUser = await prisma.customer.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(409).json({ error: 'Email already in use' });
     }
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create a new user
     const newUser = await prisma.customer.create({
       data: {
         email,
@@ -56,34 +49,52 @@ router.post('/signup', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // Validate input fields
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
   try {
-    // Check if the email exists in the database
-    const user = await prisma.customer.findUnique({
-      where: { email },
-    });
-
+    const user = await prisma.customer.findUnique({ where: { email } });
     if (!user) {
-      return res.status(404).json({ error: 'User not found' }); // Email doesn't exist
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Compare the provided password with the hashed password in the database
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password' }); // Incorrect password
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Successful login
-    return res.status(200).json({ message: 'Login successful', email: user.email });
+    req.session.user = {
+      customer_id: user.customer_id,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+    };
+
+    res.status(200).json({ message: 'Login successful', email: user.email });
   } catch (error) {
     console.error('Login error:', error.message);
-    return res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Get User Session Route
+router.get('/getSession', (req, res) => {
+  if (req.session.user) {
+    res.status(200).json({ user: req.session.user });
+  } else {
+    res.status(401).json({ error: 'No user session found' });
+  }
+});
+
+// Logout Route
+router.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to logout' });
+    }
+    res.status(200).json({ message: 'Logout successful' });
+  });
 });
 
 module.exports = router;
