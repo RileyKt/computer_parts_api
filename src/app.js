@@ -8,26 +8,25 @@ const app = express();
 
 // Middleware
 app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'your_secret_key',
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-      secure: false, // Set to true if using HTTPS
-      httpOnly: true,
-    },
-  })
-);
-
-app.use(
   cors({
-    origin: 'http://localhost:3000', // Replace with your frontend URL
+    origin: 'http://localhost:3000', 
     credentials: true,
   })
 );
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'default_secret_key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 1000 * 60 * 60, // 1 hour
+    },
+  })
+);
 
 // Static file serving
 app.use('/public', express.static(path.join(__dirname, '../public')));
@@ -35,9 +34,12 @@ app.use('/public', express.static(path.join(__dirname, '../public')));
 // Routes
 const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
+const purchaseRoutes = require('./routes/purchases');
+
 
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/purchases', purchaseRoutes);
 
 // Base endpoint
 app.get('/', (req, res) => {
