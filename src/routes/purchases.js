@@ -4,86 +4,89 @@ const { PrismaClient } = require('@prisma/client');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Add a new purchase
+// Adds a new purchase
 router.post('/', async (req, res) => {
-  const {
-    customer_id,
-    street,
-    city,
-    province,
-    country,
-    postal_code,
-    credit_card,
-    credit_expire,
-    credit_cvv,
-    invoice_amt,
-    invoice_tax,
-    invoice_total,
-    products,
-  } = req.body;
-
-  // Validates input fields
-  if (
-    !customer_id ||
-    !street ||
-    !city ||
-    !province ||
-    !country ||
-    !postal_code ||
-    !credit_card ||
-    !credit_expire ||
-    !credit_cvv ||
-    !invoice_amt ||
-    !invoice_tax ||
-    !invoice_total ||
-    !products
-  ) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  try {
-    // Create a new purchase
-    const newPurchase = await prisma.purchase.create({
-      data: {
-        customer_id,
-        street,
-        city,
-        province,
-        country,
-        postal_code,
-        credit_card,
-        credit_expire,
-        credit_cvv,
-        invoice_amt: parseFloat(invoice_amt),
-        invoice_tax: parseFloat(invoice_tax),
-        invoice_total: parseFloat(invoice_total),
-        order_date: new Date(),
-      },
-    });
-
-    // Add purchase items
-    for (const item of products) {
-      const { product_id, quantity } = item;
-
-      if (!product_id || !quantity) {
-        return res.status(400).json({ error: 'Product ID and quantity are required for each product.' });
-      }
-
-      await prisma.purchaseItem.create({
+    const {
+      customer_id,
+      street,
+      city,
+      province,
+      country,
+      postal_code,
+      credit_card,
+      credit_expire,
+      credit_cvv,
+      cart,
+      invoice_amt,
+      invoice_tax,
+      invoice_total,
+    } = req.body;
+  
+    // Validate input fields
+    if (
+      !customer_id ||
+      !street ||
+      !city ||
+      !province ||
+      !country ||
+      !postal_code ||
+      !credit_card ||
+      !credit_expire ||
+      !credit_cvv ||
+      !cart ||
+      !invoice_amt ||
+      !invoice_tax ||
+      !invoice_total
+    ) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+  
+    try {
+      // Creates a new purchase
+      const newPurchase = await prisma.purchase.create({
         data: {
-          purchase_id: newPurchase.purchase_id,
-          product_id,
-          quantity,
+          customer_id,
+          street,
+          city,
+          province,
+          country,
+          postal_code,
+          credit_card,
+          credit_expire,
+          credit_cvv,
+          invoice_amt: parseFloat(invoice_amt),
+          invoice_tax: parseFloat(invoice_tax),
+          invoice_total: parseFloat(invoice_total),
+          order_date: new Date(),
         },
       });
+  
+      // Process the cart (comma-separated string of product IDs)
+      const cartItems = cart.split(',').reduce((acc, productId) => {
+        productId = parseInt(productId, 10);
+        // Count quantities of each product
+        acc[productId] = (acc[productId] || 0) + 1; 
+        return acc;
+      }, {});
+  
+      // Add purchase items
+      for (const [product_id, quantity] of Object.entries(cartItems)) {
+        await prisma.purchaseItem.create({
+          data: {
+            purchase_id: newPurchase.purchase_id,
+            product_id: parseInt(product_id, 10),
+            quantity,
+          },
+        });
+      }
+  
+      res.status(201).json({ message: 'Purchase created successfully', purchase: newPurchase });
+    } catch (error) {
+      console.error('Error creating purchase:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.status(201).json({ message: 'Purchase created successfully', purchase: newPurchase });
-  } catch (error) {
-    console.error('Error creating purchase:', error.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+  });
+  
 
 // Get all purchases for a specific customer
 router.get('/customer/:id', async (req, res) => {
@@ -93,7 +96,7 @@ router.get('/customer/:id', async (req, res) => {
     const purchases = await prisma.purchase.findMany({
       where: { customer_id: parseInt(id) },
       include: {
-        // Include related purchase items
+        // Includes related purchase items
         PurchaseItem: true, 
       },
     });

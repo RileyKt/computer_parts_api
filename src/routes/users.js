@@ -1,9 +1,19 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
+const PasswordValidator = require('password-validator');
 const { PrismaClient } = require('@prisma/client');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Create a password schema
+const passwordSchema = new PasswordValidator();
+passwordSchema
+  .is().min(8)
+  .has().uppercase()
+  .has().lowercase()
+  .has().digits(1)
+  .has().not().spaces();
 
 // Signup Route
 router.post('/signup', async (req, res) => {
@@ -13,22 +23,28 @@ router.post('/signup', async (req, res) => {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
+  if (!passwordSchema.validate(password)) {
+    return res.status(400).json({
+      error: 'Password does not meet the required policy',
+      policy: {
+        minLength: '8 characters minimum',
+        containsUppercase: 'At least 1 uppercase character',
+        containsLowercase: 'At least 1 lowercase character',
+        containsNumber: 'At least 1 number',
+        noSpaces: 'No spaces are allowed',
+      },
+    });
+  }
+
   try {
     const existingUser = await prisma.customer.findUnique({ where: { email } });
-
     if (existingUser) {
       return res.status(409).json({ error: 'Email already in use' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const newUser = await prisma.customer.create({
-      data: {
-        email,
-        password: hashedPassword,
-        first_name,
-        last_name,
-      },
+      data: { email, password: hashedPassword, first_name, last_name },
     });
 
     res.status(201).json({
@@ -41,6 +57,7 @@ router.post('/signup', async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('Signup error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -55,13 +72,11 @@ router.post('/login', async (req, res) => {
 
   try {
     const user = await prisma.customer.findUnique({ where: { email } });
-
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -73,24 +88,21 @@ router.post('/login', async (req, res) => {
       last_name: user.last_name,
     };
 
-    res.status(200).json({ message: 'Login successful', email: user.email });
+    res.status(200).json({ message: 'Login successful', user: req.session.user });
   } catch (error) {
+    console.error('Login error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Logout Route
 router.post('/logout', (req, res) => {
-  if (req.session.user) {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to log out' });
-      }
-      res.status(200).json({ message: 'Logout successful' });
-    });
-  } else {
-    res.status(401).json({ error: 'Not logged in' });
-  }
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to log out' });
+    }
+    res.status(200).json({ message: 'Logged out successfully' });
+  });
 });
 
 // Get Session Route

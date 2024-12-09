@@ -9,7 +9,7 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: 'http://localhost:3000', 
+    origin: 'http://localhost:3000', // Adjust as needed
     credentials: true,
   })
 );
@@ -35,7 +35,6 @@ app.use('/public', express.static(path.join(__dirname, '../public')));
 const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
 const purchaseRoutes = require('./routes/purchases');
-
 
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
