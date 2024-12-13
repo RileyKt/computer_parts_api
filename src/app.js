@@ -7,12 +7,11 @@ const path = require('path');
 const app = express();
 
 // Middleware
-app.use(
-  cors({
-    origin: 'http://localhost:3000', // Adjust as needed
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: 'http://localhost:5173', // Allow requests from the React app
+  credentials: true, // Allow cookies
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(

@@ -62,7 +62,6 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// Login Route
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -71,29 +70,32 @@ router.post('/login', async (req, res) => {
   }
 
   try {
+    // Check if the email exists
     const user = await prisma.customer.findUnique({ where: { email } });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Compare hashed password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // If login is successful
     req.session.user = {
       customer_id: user.customer_id,
       email: user.email,
       first_name: user.first_name,
       last_name: user.last_name,
     };
-
-    res.status(200).json({ message: 'Login successful', user: req.session.user });
+    return res.status(200).json({ message: 'Login successful' });
   } catch (error) {
     console.error('Login error:', error.message);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 // Logout Route
 router.post('/logout', (req, res) => {
